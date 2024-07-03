@@ -2,6 +2,14 @@
 Calibrator of post-training quantization (PTQ)
 """
 
+
+quantizer_config = {
+    "layer 1": "lsq",
+    "layer 2": "lsq_token",
+    "layer 3": "minmax_token"
+}
+
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -141,7 +149,7 @@ class PTQ(object):
         
         return cached_data    
 
-    def layer_trainer(self, layer:Union[_QBaseConv2d, _QBaseLinear], cached_data):
+    def layer_trainer(self, layer:Union[_QBaseConv2d, _QBaseLinear], layer_name: str, cached_data):
         # assign the layer quantizer
         weight = layer.weight
         layer.weight.requires_grad_(False)
@@ -165,7 +173,7 @@ class PTQ(object):
 
         if isinstance(layer, _QBaseConv2d):
             if layer.in_channels != 3:
-                layer.aq = input_quantizer[self.xqtype](nbit=self.args.abit, train_flag=True).cuda()
+                layer.aq = input_quantizer[quantizer_config[layer_name]](nbit=self.args.abit, train_flag=True, unsigned=True).cuda()
         else:
             layer.aq = input_quantizer[self.xqtype](nbit=self.args.abit, train_flag=True).cuda()
         
@@ -286,7 +294,7 @@ class PTQ(object):
                 self.logger.info(f"Start Calibration of layer: {n}")
 
                 if self.layer_train:
-                    new_layer, calib_err = self.layer_trainer(m, cached_data)
+                    new_layer, calib_err = self.layer_trainer(m, n, cached_data)
                 else:
                     new_layer, calib_err = self.layer_calibrator(m, cached_data)
 
